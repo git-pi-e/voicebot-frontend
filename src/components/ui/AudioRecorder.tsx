@@ -14,14 +14,14 @@ interface Message {
 const AudioRecorder: React.FC<{ onMessageReceived: (message: Message) => void }> = ({ onMessageReceived }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
-  const socketUrl = 'ws://localhost:8080/audio';
+  
+  const socketUrl = 'ws://127.0.0.1:8000/ws/voice';
   const { sendMessage, getWebSocket, lastMessage } = useWebSocket(socketUrl, {
     shouldReconnect: () => false,
     share: true,
   }, isRecording);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-
   useEffect(() => {
     const initializeMediaStream = async () => {
       try {
