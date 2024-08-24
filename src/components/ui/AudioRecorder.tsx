@@ -1,70 +1,80 @@
 // @/components/ui/AudioRecorder.tsx
-"use client";
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Button } from "@/components/ui/button";
-import useWebSocket, { ReadyState } from 'react-use-websocket';
-import AudioVisualizer from '@/components/ui/AudioVisualizer';
-
-interface Message {
-  sender: 'user' | 'ai';
-  text: string;
+interface AudioRecorderProps {
+  onMessageReceived: (message: { sender: 'user' | 'ai'; text: string }) => void;
+  onProcessing: (state: boolean) => void;
 }
 
-const AudioRecorder: React.FC<{ onMessageReceived: (message: Message) => void }> = ({ onMessageReceived }) => {
+const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProcessing }) => {
   const [isRecording, setIsRecording] = useState(false);
-  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
-  
-  const socketUrl = 'ws://127.0.0.1:8000/ws/voice';
-  const { sendMessage, getWebSocket, lastMessage } = useWebSocket(socketUrl, {
-    shouldReconnect: () => false,
-    share: true,
-  }, isRecording);
-
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  useEffect(() => {
-    const initializeMediaStream = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        setMediaStream(stream);
-      } catch (error) {
-        console.error("Error accessing the microphone:", error);
-      }
-    };
-
-    initializeMediaStream();
-
-    return () => {
-      mediaStream?.getTracks().forEach(track => track.stop());
-    };
-  }, []);
-
-  useEffect(() => {
-    if (lastMessage !== null) {
-      const data = JSON.parse(lastMessage.data);
-
-      if (data.type === 'speech-to-text') {
-        onMessageReceived({ sender: 'user', text: data.text });
-      } else if (data.type === 'llm-response') {
-        onMessageReceived({ sender: 'ai', text: data.text });
-
-        const audio = new Audio(data.audioUrl);
-        audio.play();
-      }
-    }
-  }, [lastMessage, onMessageReceived]);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
 
   const handleStartRecording = () => {
+    onProcessing(true); // Disable other inputs
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+      const recorder = new MediaRecorder(stream);
+      setMediaRecorder(recorder);
+      recorder.start();
+
+      recorder.ondataavailable = event => {
+        setAudioChunks(prev => [...prev, event.data]);
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+
+        // Send audio to backend
+        const formData = new FormData();
+        formData.append('file', audioBlob, 'recording.wav');
+
+        try {
+          // Step 1: Transcription
+          const transcriptionResponse = await fetch('http://your-backend-url/transcribe', {
+            method: 'POST',
+            body: formData,
+          });
+          const transcriptionData = await transcriptionResponse.json();
+          onMessageReceived({ sender: 'user', text: transcriptionData.transcript });
+
+          // Step 2: Response generation
+          const responseResponse = await fetch('http://your-backend-url/generate-response', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prompt: transcriptionData.transcript }),
+          });
+          const responseData = await responseResponse.json();
+          onMessageReceived({ sender: 'ai', text: responseData.response });
+
+          // Step 3: Play response audio (if available)
+          if (responseData.audio) {
+            const audioUrl = URL.createObjectURL(new Blob([responseData.audio], { type: 'audio/wav' }));
+            const audio = new Audio(audioUrl);
+            audio.play();
+          }
+
+          onProcessing(false); // Re-enable other inputs
+
+        } catch (error) {
+          console.error('Error processing audio:', error);
+          onProcessing(false); // Re-enable inputs even in case of an error
+        }
+
+        setAudioChunks([]); // Reset audio chunks for next recording
+      };
+    });
     setIsRecording(true);
   };
 
   const handleStopRecording = () => {
-    setIsRecording(false);
-    const ws = getWebSocket();
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.close();
+    if (mediaRecorder) {
+      mediaRecorder.stop();
     }
-    setMediaStream(null);
+    setIsRecording(false);
   };
 
   return (
@@ -75,7 +85,6 @@ const AudioRecorder: React.FC<{ onMessageReceived: (message: Message) => void }>
       >
         {isRecording ? 'Stop Recording' : 'Start Recording'}
       </Button>
-      {/* {isRecording && mediaStream && <AudioVisualizer stream={mediaStream} />} */}
     </div>
   );
 };

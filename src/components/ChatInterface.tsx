@@ -13,6 +13,7 @@ interface Message {
 const ChatInterface: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false); // State to handle processing
 
   const messagesEndRef = useRef<HTMLDivElement>(null); // Ref to the last message element
 
@@ -29,7 +30,7 @@ const ChatInterface: React.FC = () => {
       setMessages([...messages, { sender: 'user', text: inputText }]);
       setInputText('');
 
-      // Simulate AI response (replace with WebSocket message in production)
+      // Simulate AI response (replace with actual API call in production)
       setTimeout(() => {
         setMessages((prev) => [
           ...prev,
@@ -41,6 +42,10 @@ const ChatInterface: React.FC = () => {
 
   const handleMessageReceived = (message: Message) => {
     setMessages((prev) => [...prev, message]);
+  };
+
+  const handleProcessingState = (state: boolean) => {
+    setIsProcessing(state);
   };
 
   return (
@@ -65,17 +70,22 @@ const ChatInterface: React.FC = () => {
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+          disabled={isProcessing} // Disable input during processing
         />
         <Button
           onClick={handleSendMessage}
           className="px-4 py-2 rounded-md h-9"
           variant="secondary"
+          disabled={isProcessing} // Disable button during processing
         >
           Send
         </Button>
       </div>
 
-      <AudioRecorder onMessageReceived={handleMessageReceived} />
+      <AudioRecorder
+        onMessageReceived={handleMessageReceived}
+        onProcessing={handleProcessingState} // Handle processing state
+      />
 
     </div>
   );
