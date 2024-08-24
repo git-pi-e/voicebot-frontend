@@ -32,7 +32,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProc
 
         try {
           // Step 1: Transcription
-          const transcriptionResponse = await fetch('http://your-backend-url/transcribe', {
+          const transcriptionResponse = await fetch('http://localhost:8000/transcribe', {
             method: 'POST',
             body: formData,
           });
@@ -40,7 +40,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProc
           onMessageReceived({ sender: 'user', text: transcriptionData.transcript });
 
           // Step 2: Response generation
-          const responseResponse = await fetch('http://your-backend-url/generate-response', {
+          const responseResponse = await fetch('http://localhost:8000/generate', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
