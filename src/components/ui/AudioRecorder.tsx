@@ -1,6 +1,6 @@
-// @/components/ui/AudioRecorder.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import Recorder from 'recorder-js';
 
 interface AudioRecorderProps {
   onMessageReceived: (message: { sender: 'user' | 'ai'; text: string }) => void;
@@ -9,38 +9,77 @@ interface AudioRecorderProps {
 
 const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProcessing }) => {
   const [isRecording, setIsRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
+  const recorderRef = useRef<Recorder | null>(null);
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
 
-  const handleStartRecording = () => {
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
+  useEffect(() => {
+    // Initialize AudioContext and Recorder.js
+    const newAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const newRecorder = new Recorder(newAudioContext);
+    setAudioContext(newAudioContext);
+    recorderRef.current = newRecorder;
+  }, []);
+
+  const handleStartRecording = async () => {
     onProcessing(true); // Disable other inputs
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-      const recorder = new MediaRecorder(stream);
-      setMediaRecorder(recorder);
-      recorder.start();
+    console.log('initialise recorder');
 
-      recorder.ondataavailable = event => {
-        setAudioChunks(prev => [...prev, event.data]);
-      };
+    if (recorderRef.current && audioContext) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorderRef.current.init(stream);
+        recorderRef.current.start();
+        setIsRecording(true);
+        console.log('recording started');
+      } catch (error) {
+        console.error('Error accessing microphone:', error);
+        onProcessing(false); // Re-enable inputs if there's an error
+      }
+    }
+  };
 
-      recorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+  const handleStopRecording = async () => {
+    if (recorderRef.current && isRecording) {
+      recorderRef.current.stop().then(async ({ blob }) => {
+        setIsRecording(false);
+        console.log('recording stopped');
+
+        // DEBUG: Play the audio recorded immediately for debugging
+        // const audioUrlTest = URL.createObjectURL(blob);
+        // const audioTest = new Audio(audioUrlTest);
+        // audioTest.play().catch(error => {
+        //   console.error('Error playing audio:', error);
+        // });
+
+        // Log Blob type and size to ensure correctness
+        console.log(`Audio Blob: ${blob.type}, size: ${blob.size} bytes`);
 
         // Send audio to backend
         const formData = new FormData();
-        formData.append('file', audioBlob, 'recording.wav');
+        formData.append('file', blob, 'recording.wav');
 
         try {
-          // Step 1: Transcription
-          const transcriptionResponse = await fetch('http://localhost:8000/transcribe', {
+          // Step 1: Audio transcription
+          const transURL = `${BACKEND_URL}/transcribe`;
+          console.log(transURL);
+
+          const transcriptionResponse = await fetch(transURL, {
             method: 'POST',
             body: formData,
           });
+
+          if (!transcriptionResponse.ok) {
+            throw new Error('Failed to transcribe audio');
+          }
+
           const transcriptionData = await transcriptionResponse.json();
           onMessageReceived({ sender: 'user', text: transcriptionData.transcript });
 
           // Step 2: Response generation
-          const responseResponse = await fetch('http://localhost:8000/generate', {
+          const responseURL = `${BACKEND_URL}/generate`;
+          const responseResponse = await fetch(responseURL, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -58,23 +97,12 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProc
           }
 
           onProcessing(false); // Re-enable other inputs
-
         } catch (error) {
           console.error('Error processing audio:', error);
           onProcessing(false); // Re-enable inputs even in case of an error
         }
-
-        setAudioChunks([]); // Reset audio chunks for next recording
-      };
-    });
-    setIsRecording(true);
-  };
-
-  const handleStopRecording = () => {
-    if (mediaRecorder) {
-      mediaRecorder.stop();
+      });
     }
-    setIsRecording(false);
   };
 
   return (

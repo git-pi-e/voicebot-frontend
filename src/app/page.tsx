@@ -1,7 +1,9 @@
 // @/pages/page.tsx
 import React from 'react';
-import AudioRecorder from '@/components/ui/AudioRecorder';
 import ChatInterface from '@/components/ChatInterface';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const Home: React.FC = () => {
   return (
