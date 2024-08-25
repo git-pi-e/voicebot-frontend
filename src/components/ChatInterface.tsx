@@ -62,7 +62,7 @@ const ChatInterface: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="mt-4 flex flex-row">
+      {/* <div className="mt-4 flex flex-row">
         <Input
           type="text"
           placeholder='Type a message OR speak and click "Send" to send an audio message.'
@@ -80,7 +80,7 @@ const ChatInterface: React.FC = () => {
         >
           Send
         </Button>
-      </div>
+      </div> */}
 
       <AudioRecorder
         onMessageReceived={handleMessageReceived}
