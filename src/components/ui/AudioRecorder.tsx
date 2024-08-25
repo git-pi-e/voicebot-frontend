@@ -32,7 +32,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProc
         recorderRef.current.init(stream);
         recorderRef.current.start();
         setIsRecording(true);
-        console.log('recording started');
+        console.log('Recording started');
       } catch (error) {
         console.error('Error accessing microphone:', error);
         onProcessing(false); // Re-enable inputs if there's an error
@@ -44,7 +44,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProc
     if (recorderRef.current && isRecording) {
       recorderRef.current.stop().then(async ({ blob }) => {
         setIsRecording(false);
-        console.log('recording stopped');
+        console.log('Recording stopped');
 
         // DEBUG: Play the audio recorded immediately for debugging
         // const audioUrlTest = URL.createObjectURL(blob);
@@ -63,7 +63,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProc
         try {
           // Step 1: Audio transcription
           const transURL = `${BACKEND_URL}/transcribe`;
-          console.log(transURL);
+          console.log('Transcribing audio...');
 
           const transcriptionResponse = await fetch(transURL, {
             method: 'POST',
@@ -87,6 +87,8 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProc
             body: JSON.stringify({ prompt: transcriptionData.transcript }),
           });
           const responseData = await responseResponse.json();
+          console.log('Response:', responseData.response);
+
           onMessageReceived({ sender: 'ai', text: responseData.response });
 
           // Step 3: Play response audio (if available)
