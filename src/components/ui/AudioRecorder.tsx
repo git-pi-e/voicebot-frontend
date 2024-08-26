@@ -112,7 +112,6 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProc
     }
   };
 
-
   return (
     <div className="flex flex-col items-center mt-4">
       <Button
