@@ -46,15 +46,8 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProc
         setIsRecording(false);
         console.log('Recording stopped');
 
-        // DEBUG: Play the audio recorded immediately for debugging
-        // const audioUrlTest = URL.createObjectURL(blob);
-        // const audioTest = new Audio(audioUrlTest);
-        // audioTest.play().catch(error => {
-        //   console.error('Error playing audio:', error);
-        // });
-
         // Log Blob type and size to ensure correctness
-        console.log(`Audio Blob: ${blob.type}, size: ${blob.size} bytes`);
+        console.log(`Audio Blob: ${blob.type}, size: ${blob.size/1024} kBs`);
 
         // Send audio to backend
         const formData = new FormData();
@@ -86,6 +79,10 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProc
             },
             body: JSON.stringify({ prompt: transcriptionData.transcript }),
           });
+          console.log('Generating response...');
+          if (!responseResponse.ok) {
+            throw new Error('Failed to generate response');
+          }
           const responseData = await responseResponse.json();
           console.log('Response:', responseData.response);
 
@@ -93,8 +90,14 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProc
 
           // Step 3: Play response audio (if available)
           if (responseData.audio) {
-            const audioUrl = URL.createObjectURL(new Blob([responseData.audio], { type: 'audio/wav' }));
-            const audio = new Audio(audioUrl);
+            // response.audio is a base64-encoded WAV file
+            console.log('Playing response audio...');
+            console.log('Audio Blob:', responseData.audio.data);
+            const audioBlob = new Blob([new Uint8Array(responseData.audio.data)], {
+              type: 'audio/wav',
+            });
+            const audioURL = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioURL);
             audio.play();
           }
 
@@ -102,10 +105,13 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({ onMessageReceived, onProc
         } catch (error) {
           console.error('Error processing audio:', error);
           onProcessing(false); // Re-enable inputs even in case of an error
+          // Optionally show an error message to the user
+
         }
       });
     }
   };
+
 
   return (
     <div className="flex flex-col items-center mt-4">
